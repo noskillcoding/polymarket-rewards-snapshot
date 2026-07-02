@@ -21,9 +21,7 @@ on:
                               # GITHUB_TOKEN pushes don't trigger workflows anyway)
 
 permissions:
-  contents: write   # push history commits
-  pages: write      # deploy to Pages
-  id-token: write   # Pages OIDC
+  contents: write   # push history commits + the gh-pages branch
 
 concurrency:
   group: update             # a delayed cron run must not overlap the next one
@@ -33,9 +31,6 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -76,11 +71,17 @@ jobs:
             git push
           fi
 
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: page
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # Branch-based Pages deploy: force-push page/ as a single orphan commit,
+      # so gh-pages never accumulates history. (The Actions deploy path —
+      # deploy-pages@v4 — hung indefinitely in GitHub's queue on this account;
+      # legacy branch builds are what its other Pages sites use and they work.)
+      - name: Deploy page/ to gh-pages
+        run: |
+          cd page
+          touch .nojekyll
+          git init -b gh-pages -q
+          git config user.name  'rewards-bot'
+          git config user.email 'rewards-bot@users.noreply.github.com'
+          git add -A
+          git commit -q -m "deploy: $(date -u +'%Y-%m-%dT%H:%MZ')"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages

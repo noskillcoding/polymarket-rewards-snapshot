@@ -18,7 +18,8 @@ compute.py          join + bucket 9 dimensions + score competitiveness with the
                     (committed: a long-term time series of the pool's shape)
 page/               zero-dependency static dashboard (vanilla JS, no build)
 .github/workflows/update.yml   cron */30: fetch -> compute -> commit history
-                    -> deploy page/ to GitHub Pages
+                    -> force-push page/ to gh-pages (branch-based Pages;
+                    the Actions deploy path hung indefinitely — see workflow)
 ```
 
 Fail-safe: fetch errors, <99% coverage, or an implausibly small universe
@@ -28,14 +29,13 @@ missed cycles, and GitHub emails the repo owner about the failed workflow.
 
 ## Setup (one-time)
 
-1. Create the repo on GitHub (**public**, for free Pages) — don't push yet.
-2. Repo **Settings → Pages → Source: GitHub Actions**.
-3. Push. The push triggers the first workflow run automatically
+1. Create the repo on GitHub (**public**, for free Pages) and push. The push
+   triggers the first workflow run, which creates the `gh-pages` branch
    (or run it by hand: **Actions** tab → `update` → *Run workflow*).
-4. Page appears at `https://<account>.github.io/<repo>/`.
-
-If the first run fails at the deploy step, Pages wasn't enabled yet (step 2) —
-enable it and re-run the workflow; nothing else is affected.
+2. Repo **Settings → Pages → Source: Deploy from a branch → `gh-pages` / root**
+   (API: `PUT /repos/{owner}/{repo}/pages` with `build_type=legacy`,
+   `source={branch: gh-pages, path: /}`).
+3. Page appears at `https://<account>.github.io/<repo>/`.
 
 No secrets required — everything reads public Polymarket APIs.
 
