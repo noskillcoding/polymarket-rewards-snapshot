@@ -1,0 +1,84 @@
+# Snapshot the Polymarket rewards universe every 30 min and deploy the
+# dashboard to GitHub Pages.
+#
+# Fail-safe by construction: any failing step (fetch errors, coverage < 99%,
+# compute sanity floors) aborts the run BEFORE deploy — Pages keeps serving
+# the last good snapshot and the page header shows a STALE badge. GitHub
+# emails the repo owner on workflow failure.
+#
+# The per-run history commit doubles as repo activity, which keeps GitHub
+# from auto-disabling this schedule after 60 idle days.
+name: update
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # keep PERIOD_MIN below in sync with this cadence
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'history/**'         # bot commits must not re-trigger (belt & suspenders;
+                              # GITHUB_TOKEN pushes don't trigger workflows anyway)
+
+permissions:
+  contents: write   # push history commits
+  pages: write      # deploy to Pages
+  id-token: write   # Pages OIDC
+
+concurrency:
+  group: update             # a delayed cron run must not overlap the next one
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Fetch snapshot
+        run: python fetch_snapshot.py
+
+      - name: Compute page data + history line
+        env:
+          PERIOD_MIN: '30'
+        run: python compute.py --history history
+
+      - name: Upload fetch manifest (debug aid)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/*/manifest.json
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Commit history
+        run: |
+          git config user.name  'rewards-bot'
+          git config user.email 'rewards-bot@users.noreply.github.com'
+          git add history
+          if ! git diff --cached --quiet; then
+            git commit -m "history: $(date -u +'%Y-%m-%dT%H:%MZ')"
+            git pull --rebase origin main
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: page
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

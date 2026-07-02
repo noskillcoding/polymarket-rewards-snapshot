@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquidity Rewards — Market Snapshot</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%233b5bdb'/%3E%3Crect x='3' y='8' width='2.4' height='5' fill='white'/%3E%3Crect x='6.8' y='5' width='2.4' height='8' fill='white'/%3E%3Crect x='10.6' y='3' width='2.4' height='10' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f3f0;padding:34px 24px 60px;font-family:system-ui,-apple-system,sans-serif;color:#1c1c1e}
+.frame{width:1180px;margin:0 auto;background:#fff;border:1px solid rgba(0,0,0,.10);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.07);overflow:hidden}
+.chrome{display:flex;align-items:center;padding:10px 15px;border-bottom:1px solid rgba(0,0,0,.10);background:#fbfbfa}
+.dot{width:9px;height:9px;border-radius:50%;background:rgba(0,0,0,.11)}
+.dot+.dot{margin-left:6px}
+.chrome .ttl{font:600 11px system-ui;color:#8a8a8e;margin-left:9px}
+.pagebody{padding:22px 24px 24px}
+
+.headline{display:flex;align-items:flex-end;gap:34px;padding-bottom:16px;border-bottom:1px solid rgba(0,0,0,.10)}
+.kpi .v{font:700 30px/1 system-ui;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.kpi .sfx{font:600 14px system-ui;color:#8a8a8e;margin-left:3px}
+.kpi2 .v{font:700 22px/1 system-ui}
+.cap{font-size:11px;color:#8a8a8e;margin-top:5px}
+.snap{margin-left:auto;text-align:right}
+.snap .ts{font:500 11px 'IBM Plex Mono',monospace;color:#8a8a8e}
+.snap .ts.stale{color:#b45309}
+.snap .period{color:#b8b8bc;margin-top:5px}
+
+.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:15px 0 3px;min-height:24px}
+.chips .flt{font-size:11px;color:#8a8a8e}
+.chip{display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 6px 0 10px;font:500 11px 'IBM Plex Mono',monospace;color:#3b5bdb;border:1px solid rgba(59,91,219,.30);background:rgba(59,91,219,.10);border-radius:14px;animation:pop .18s ease}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+.chip button{width:15px;height:15px;border-radius:50%;background:rgba(59,91,219,.16);border:0;color:#3b5bdb;font-size:11px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.chip button:hover{background:rgba(59,91,219,.3)}
+.clearall{font-size:11px;color:#3b5bdb;cursor:pointer;background:none;border:0;padding:0}
+.clearall:hover{text-decoration:underline}
+.summary{margin-left:auto;font:400 11px 'IBM Plex Mono',monospace;color:#b8b8bc}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin:16px 0}
+.bd{border:1px solid rgba(0,0,0,.10);border-radius:10px;padding:14px 15px;background:#fff}
+.bdhd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.bdhd .t{font:600 10.5px system-ui;text-transform:uppercase;letter-spacing:.055em;color:#1c1c1e}
+.bdhd .s{font-size:10px;color:#b8b8bc;white-space:nowrap;margin-left:8px}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:70px 1fr 34px;gap:9px;align-items:center;font:11px/1 system-ui;cursor:pointer}
+.bar .lbl{color:#8a8a8e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar:hover .lbl{color:#1c1c1e}
+.track{height:12px;background:rgba(0,0,0,.055);border-radius:3px;overflow:hidden;display:block}
+.fill{height:100%;border-radius:3px;background:#3b5bdb;display:block;width:0;opacity:.9;transition:width .55s cubic-bezier(.22,.61,.36,1),opacity .3s}
+.bar:hover .fill{filter:brightness(.9)}
+.bar .val{text-align:right;font:500 10.5px 'IBM Plex Mono',monospace;color:#1c1c1e}
+
+.secttl{font:600 10.5px system-ui;text-transform:uppercase;letter-spacing:.055em;color:#8a8a8e;margin:2px 0 10px}
+.tblwrap{border:1px solid rgba(0,0,0,.10);border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;font:600 9.5px system-ui;text-transform:uppercase;letter-spacing:.05em;color:#8a8a8e;padding:9px 10px;border-bottom:1px solid rgba(0,0,0,.10);background:#fbfbfa;cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:#1c1c1e}
+th.on{color:#3b5bdb}
+th.num{text-align:right}
+td{padding:8px 10px;border-bottom:1px solid rgba(0,0,0,.055);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:rgba(59,91,219,.04)}
+td.num{text-align:right;font:500 10.5px 'IBM Plex Mono',monospace}
+td.q{white-space:normal;max-width:340px}
+td.q a{color:inherit;text-decoration:none}
+td.q a:hover{text-decoration:underline}
+.pill{display:inline-block;font:500 9.5px system-ui;padding:2px 8px;border-radius:10px}
+.pill.th{background:rgba(180,83,9,.12);color:#b45309}
+.pill.ct{background:rgba(59,91,219,.10);color:#3b5bdb}
+.pill.nf{background:rgba(0,0,0,.055);color:#8a8a8e}
+
+.pager{display:flex;gap:6px;align-items:center;margin-top:12px}
+.pginfo{margin-right:auto;font:400 11px 'IBM Plex Mono',monospace;color:#8a8a8e}
+.pgbtn{font:600 11px system-ui;min-width:30px;height:28px;padding:0 9px;border:1px solid rgba(0,0,0,.10);border-radius:7px;background:#fff;cursor:pointer;transition:background .12s,border-color .12s}
+.pgbtn:hover{background:#fbfbfa;border-color:#8a8a8e}
+.pgbtn.on{background:#3b5bdb;border-color:#3b5bdb;color:#fff}
+.pgbtn.dis{opacity:.4;pointer-events:none}
+.pggap{color:#b8b8bc;font-size:11px;padding:0 2px}
+
+.tip{position:fixed;pointer-events:none;z-index:60;background:#1c1c1e;color:#fff;padding:7px 9px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);transform:translateY(-115%)}
+.tip .l1{font:600 12px 'IBM Plex Mono',monospace}
+.tip .l2{font:400 10.5px 'IBM Plex Mono',monospace;color:#c7c7cc;margin-top:2px}
+
+@media(max-width:1240px){.frame{width:auto;max-width:1180px}}
+@media(max-width:1020px){.grid{grid-template-columns:1fr 1fr}}
+@media(max-width:680px){
+  body{padding:12px 8px 40px}
+  .pagebody{padding:16px 14px 18px}
+  .grid{grid-template-columns:1fr}
+  .headline{flex-wrap:wrap;row-gap:14px;gap:24px}
+  .summary{display:none}
+  th.hm,td.hm{display:none}
+  td.q{max-width:none}
+  th,td{padding:8px 6px}
+  th{white-space:normal}
+}
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="chrome">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="ttl">Liquidity Rewards — Market Snapshot</span>
+  </div>
+  <div class="pagebody">
+    <div class="headline">
+      <div class="kpi">
+        <div class="v"><span id="kpiTotal">$—</span><span class="sfx">/day</span></div>
+        <div class="cap" id="kpiTotalCap">Total daily reward pool</div>
+      </div>
+      <div class="kpi kpi2">
+        <div class="v" id="kpiCount">—</div>
+        <div class="cap" id="kpiCountCap">Rewarded markets</div>
+      </div>
+      <div class="snap">
+        <div class="ts" id="snapTs">updated · —</div>
+        <div class="ts period" id="snapPeriod"></div>
+      </div>
+    </div>
+    <div class="chips" id="chipsRow"></div>
+    <div class="grid" id="grid"></div>
+    <div class="secttl" id="secttl"></div>
+    <div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+    <div class="pager" id="pager"></div>
+  </div>
+</div>
+<div class="tip" id="tip" hidden></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

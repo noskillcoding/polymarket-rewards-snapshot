@@ -1,0 +1,10 @@
+# raw snapshots (~20 MB each) — ephemeral, never committed
+data/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+
+# OS
+.DS_Store
