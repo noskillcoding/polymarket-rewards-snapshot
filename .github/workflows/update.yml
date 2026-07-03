@@ -1,4 +1,4 @@
-# Snapshot the Polymarket rewards universe every 30 min and deploy the
+# Snapshot the Polymarket rewards universe every hour and deploy the
 # dashboard to GitHub Pages.
 #
 # Fail-safe by construction: any failing step (fetch errors, coverage < 99%,
@@ -12,7 +12,7 @@ name: update
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # keep PERIOD_MIN below in sync with this cadence
+    - cron: '37 * * * *'      # hourly, off-peak minute (:00/:30 slots get dropped under load); keep PERIOD_MIN in sync
   workflow_dispatch:
   push:
     branches: [main]
@@ -46,7 +46,7 @@ jobs:
 
       - name: Compute page data + history line
         env:
-          PERIOD_MIN: '30'
+          PERIOD_MIN: '60'
         run: python compute.py --history history
 
       - name: Upload fetch manifest (debug aid)

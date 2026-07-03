@@ -1,6 +1,6 @@
 # Polymarket Liquidity Rewards — Market Snapshot
 
-Static dashboard + GitHub Actions pipeline: every 30 minutes it snapshots
+Static dashboard + GitHub Actions pipeline: every hour, at an off-peak minute, it snapshots
 **every rewarded Polymarket market** (~8k) and shows where the total daily
 liquidity-reward pool ($/day) is going — by category, spread, mid price,
 volume, reward size, min shares, age, time to resolution, and competitiveness.
