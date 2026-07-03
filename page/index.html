@@ -71,6 +71,13 @@ td.q a:hover{text-decoration:underline}
 .pill.ct{background:rgba(59,91,219,.10);color:#3b5bdb}
 .pill.nf{background:rgba(0,0,0,.055);color:#8a8a8e}
 
+.ybwrap{margin-bottom:18px}
+#ybtbl td:first-child{font:500 10.5px 'IBM Plex Mono',monospace}
+#ybtbl tbody tr{cursor:pointer}
+#ybtbl tbody tr.on{background:rgba(59,91,219,.08)}
+#ybtbl tbody tr.tot,#ybtbl tbody tr.tot:hover{cursor:default;background:#fbfbfa;color:#8a8a8e}
+@media(max-width:680px){.ybwrap{overflow-x:auto}#ybtbl{min-width:480px}}
+
 .pager{display:flex;gap:6px;align-items:center;margin-top:12px}
 .pginfo{margin-right:auto;font:400 11px 'IBM Plex Mono',monospace;color:#8a8a8e}
 .pgbtn{font:600 11px system-ui;min-width:30px;height:28px;padding:0 9px;border:1px solid rgba(0,0,0,.10);border-radius:7px;background:#fff;cursor:pointer;transition:background .12s,border-color .12s}
@@ -121,6 +128,14 @@ td.q a:hover{text-decoration:underline}
     </div>
     <div class="chips" id="chipsRow"></div>
     <div class="grid" id="grid"></div>
+    <div class="secttl">Yield per $100 of liquidity — capital vs pool</div>
+    <div class="tblwrap ybwrap"><table id="ybtbl">
+      <thead><tr>
+        <th>Yield /$100/day</th><th class="num">Capital</th>
+        <th class="num">Pool $/day</th><th class="num">Pool %</th><th class="num">Mkts</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
     <div class="secttl" id="secttl"></div>
     <div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
     <div class="pager" id="pager"></div>

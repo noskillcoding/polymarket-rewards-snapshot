@@ -21,15 +21,22 @@
     { key: 'vb', title: '24h volume',         sub: 'click to filter',    chip: function (b) { return 'vol ' + b; },
       buckets: ['$0', '<1k', '1–10k', '10–100k', '>100k'] },
     { key: 'rwb', title: 'Rewards/day',       sub: 'per-market pool',    chip: function (b) { return 'reward ' + b; },
-      buckets: ['$0', '<$10', '$10–25', '$25–50', '$50–100', '$100–500', '>$500'] },
+      buckets: ['<$10', '$10–25', '$25–50', '$50–100', '$100–500', '>$500'] },
     { key: 'msb', title: 'Min shares',        sub: 'reward min size',    chip: function (b) { return 'min ' + b; },
-      buckets: ['none', '≤20', '21–50', '51–100', '101–250', '>250'] },
+      buckets: ['≤20', '21–50', '51–100', '101–250', '>250'] },
     { key: 'ab', title: 'Market age',         sub: 'click to filter',    chip: function (b) { return 'age ' + b; },
-      buckets: ['<1d', '1–7d', '7–30d', '>30d', 'unknown'] },
+      buckets: ['<1d', '1–7d', '7–30d', '>30d'] },
     { key: 'rb', title: 'Time to resolution', sub: 'click to filter',    chip: function (b) { return 'ends ' + b; },
       buckets: ['<1d', '1–7d', '7–30d', '>30d', 'no end'] },
     { key: 'cb', title: 'Competitiveness',    sub: 'farmers per market', chip: function (b) { return b; },
       buckets: ['no farmers', 'thin', 'contested'] },
+    // metric:'lq' — measures in-band farming CAPITAL $, not pool $.
+    // hidden: no chart card; rendered as the full-width breakdown table only
+    // (renderYieldTable), which still cross-filters via this dimension.
+    { key: 'yb', title: 'Reward per $100 liquidity', sub: 'bars = farming capital', hidden: true,
+      chip: function (b) { return b === 'no farmers' ? b : 'yield ' + b; }, metric: 'lq',
+      buckets: ['no farmers', '<$0.02', '$0.02–0.05', '$0.05–0.1', '$0.1–0.2', '$0.2–0.5',
+                '$0.5–1', '$1–2', '$2–5', '$5–10', '$10–50', '>$50'] },
   ];
   var CB_ORDER = ['no farmers', 'thin', 'contested'];
   var PAGE_SIZE = 20;
@@ -45,6 +52,8 @@
       val: function (m) { return m.vn; } },
     { key: 'rw', label: 'Reward/day',      num: true,
       val: function (m) { return m.rw; } },
+    { key: 'y',  label: '$/100/d',         num: true, cls: 'hm',
+      val: function (m) { return m.y == null ? -1 : m.y; } },
     { key: 'cb', label: 'Competitiveness', num: false, descDefault: true,
       val: function (m) { return CB_ORDER.indexOf(m.cb); } },
   ];
@@ -70,6 +79,10 @@
   function fmtReward(n) {
     return '$' + (n >= 100 ? fmtInt(n) : n.toFixed(2));
   }
+  function fmtYield(y) {
+    if (y == null) return '—';
+    return '$' + (y < 1 ? y.toFixed(2) : y < 10 ? y.toFixed(1) : fmtInt(y));
+  }
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -88,6 +101,7 @@
   function buildCharts() {
     var grid = $('grid');
     DIMS.forEach(function (d) {
+      if (d.hidden) return; // computed + filterable, but no chart card
       var card = document.createElement('div');
       card.className = 'bd';
       card.innerHTML = '<div class="bdhd"><span class="t">' + esc(d.title) +
@@ -150,9 +164,13 @@
     var sum = cd.sums[bucket] || 0;
     var pct = cd.total > 0 ? sum / cd.total * 100 : 0;
     var pctTxt = sum <= 0 ? '0' : (pct < 1 ? '<1' : String(Math.round(pct)));
+    // capital-metric chart: line 1 = capital, line 2 shows the pool that
+    // capital earns (for 'no farmers' that pool is the unclaimed slice)
+    var l2 = cd.metric
+      ? bucket + ' · pool ' + fmtUsd(cd.pools[bucket] || 0) + '/day · ' + fmtInt(cd.counts[bucket] || 0) + ' mkts'
+      : bucket + ' · ' + pctTxt + '% of pool · ' + fmtInt(cd.counts[bucket] || 0) + ' mkts';
     var tip = $('tip');
-    tip.innerHTML = '<div class="l1">' + esc(fmtUsd(sum)) + '</div><div class="l2">' +
-      esc(bucket + ' · ' + pctTxt + '% of pool · ' + fmtInt(cd.counts[bucket] || 0) + ' mkts') + '</div>';
+    tip.innerHTML = '<div class="l1">' + esc(fmtUsd(sum)) + '</div><div class="l2">' + esc(l2) + '</div>';
     tip.style.left = (e.clientX + 14) + 'px';
     tip.style.top = (e.clientY - 12) + 'px';
     tip.hidden = false;
@@ -164,16 +182,19 @@
   function render() {
     // charts: context = all filters except own dimension
     DIMS.forEach(function (d) {
-      var sums = {}, counts = {}, total = 0;
-      d.buckets.forEach(function (b) { sums[b] = 0; counts[b] = 0; });
+      var f = d.metric || 'rw'; // bar unit: pool $ by default, capital $ for yield
+      var sums = {}, pools = {}, counts = {}, total = 0;
+      d.buckets.forEach(function (b) { sums[b] = 0; pools[b] = 0; counts[b] = 0; });
       M.forEach(function (m) {
         if (!pass(m, d.key)) return;
         if (!(m[d.key] in sums)) return;
-        sums[m[d.key]] += m.rw;
+        sums[m[d.key]] += m[f];
+        pools[m[d.key]] += m.rw;
         counts[m[d.key]]++;
-        total += m.rw;
+        total += m[f];
       });
-      chartData[d.key] = { sums: sums, counts: counts, total: total };
+      chartData[d.key] = { sums: sums, pools: pools, counts: counts, total: total, metric: d.metric };
+      if (d.hidden) return; // no bars to update (breakdown table renders this dim)
       var mx = 1;
       d.buckets.forEach(function (b) { if (sums[b] > mx) mx = sums[b]; });
       var sel = state.filters[d.key];
@@ -199,7 +220,34 @@
       ? 'of ' + fmtInt(S.meta.count) + ' in snapshot' : 'Rewarded markets';
 
     renderChips(nFilters, rows.length, ftot);
+    renderYieldTable();
     renderTable(rows);
+  }
+
+  // full-width breakdown of the yield dimension: capital vs pool per bucket.
+  // Same crossfilter context as the yield chart (all filters except yb);
+  // rows toggle the yb filter exactly like chart bars.
+  function renderYieldTable() {
+    var d = DIMS.filter(function (x) { return x.key === 'yb'; })[0];
+    var cd = chartData[d.key];
+    var sel = state.filters[d.key];
+    var poolTotal = 0, mktTotal = 0;
+    d.buckets.forEach(function (b) { poolTotal += cd.pools[b] || 0; mktTotal += cd.counts[b] || 0; });
+    function pct(p, v) { return v <= 0 ? '—' : (p < 0.1 ? '<0.1%' : p.toFixed(1) + '%'); }
+    var html = d.buckets.map(function (b) {
+      var cap = cd.sums[b] || 0, pool = cd.pools[b] || 0, n = cd.counts[b] || 0;
+      return '<tr data-b="' + esc(b) + '"' + (sel === b ? ' class="on"' : '') + '>' +
+        '<td>' + esc(b) + '</td>' +
+        '<td class="num">' + fmtUsd(cap) + '</td>' +
+        '<td class="num">' + fmtUsd(pool) + '</td>' +
+        '<td class="num">' + pct(poolTotal > 0 ? pool / poolTotal * 100 : 0, pool) + '</td>' +
+        '<td class="num">' + fmtInt(n) + '</td></tr>';
+    }).join('');
+    html += '<tr class="tot"><td>total</td>' +
+      '<td class="num">' + fmtUsd(cd.total) + '</td>' +
+      '<td class="num">' + fmtUsd(poolTotal) + '</td><td class="num">100%</td>' +
+      '<td class="num">' + fmtInt(mktTotal) + '</td></tr>';
+    $('ybtbl').tBodies[0].innerHTML = html;
   }
 
   function activeChipList() {
@@ -293,6 +341,7 @@
         '<td class="num">' + fmtSpread(m.sp) + '</td>' +
         '<td class="num hm">' + fmtVol(m.vn) + '</td>' +
         '<td class="num">' + fmtReward(m.rw) + '</td>' +
+        '<td class="num hm">' + fmtYield(m.y) + '</td>' +
         '<td><span class="pill ' + pillCls[m.cb] + '">' + esc(m.cb) + '</span></td>' +
         '</tr>';
     }).join('');
@@ -373,5 +422,9 @@
   $('snapPeriod').textContent = 'auto-updates every ' + (S.meta.period_min || 30) + ' min';
   buildCharts();
   buildTableHead();
+  $('ybtbl').tBodies[0].addEventListener('click', function (e) {
+    var tr = e.target.closest('tr[data-b]');
+    if (tr) toggleFilter('yb', tr.getAttribute('data-b'));
+  });
   render();
 })();

@@ -8,8 +8,8 @@ and reward $/day. Output: page/data.js  ->  window.SNAPSHOT = {meta, markets}.
 
 Competitiveness (approximation notes): book levels are aggregated, not
 individual orders, so "level size >= min_size" stands in for the per-order
-eligibility cutoff; the adjusted midpoint discards sub-min_size levels per the
-official anti-manipulation rule.
+eligibility cutoff; the reward midpoint is the RAW touch of any-size orders
+(engine-verified live behavior — min_size gates earning, not the midpoint).
   no farmers -> nothing currently scores (Q_min == 0: empty/one-sided book
                 outside [0.10,0.90], no in-band qualifying size, or no book)
   thin       -> a NEW min_size quote joining the best in-band price each side
@@ -112,6 +112,22 @@ def minshares_bucket(ms: float) -> str:
     return ">250"
 
 
+YIELD_EDGES = [(0.02, "<$0.02"), (0.05, "$0.02–0.05"), (0.1, "$0.05–0.1"),
+               (0.2, "$0.1–0.2"), (0.5, "$0.2–0.5"), (1, "$0.5–1"), (2, "$1–2"),
+               (5, "$2–5"), (10, "$5–10"), (50, "$10–50")]
+
+
+def yield_bucket(y: float | None) -> str:
+    """y = reward $/day per $100 of in-band farming capital; None = no farmers
+    (nothing scoring -> pool unclaimed, capital-weighted bar ~0)."""
+    if y is None:
+        return "no farmers"
+    for hi, lbl in YIELD_EDGES:
+        if y < hi:
+            return lbl
+    return ">$50"
+
+
 def reward_bucket(rw: float) -> str:
     if rw <= 0:
         return "$0"
@@ -149,29 +165,35 @@ def parse_iso(s: str | None) -> datetime | None:
         return None
 
 
-# --- competitiveness (§3 scoring vs live book) --------------------------------
+# --- competitiveness + farming capital (§3 scoring vs live book) ---------------
 
-def competitiveness(book: dict | None, min_size: float, max_spread_cents: float) -> str:
+def book_stats(book: dict | None, min_size: float, max_spread_cents: float) -> tuple[str, float]:
+    """-> (competitiveness bucket, in-band farming capital $).
+
+    Capital = cash committed to reward-eligible resting orders: levels within
+    max_spread of the raw-touch mid with size >= min_size, valued at price*size
+    on the bid side and (1-price)*size on the ask side (an ask is a NO-bid's
+    collateral). This is the denominator of the yield-per-$100 dimension."""
     if not book or max_spread_cents <= 0:
-        return "no farmers"
+        return "no farmers", 0.0
     bids = [(float(l["price"]), float(l["size"])) for l in book.get("bids") or []]
     asks = [(float(l["price"]), float(l["size"])) for l in book.get("asks") or []]
     if not bids or not asks:
-        return "no farmers"  # one-sided touch: no adjusted mid, treat as unclaimed
+        # one-sided book: the midpoint is undefined -> nothing can score
+        # (engine parity: reward.OneSidedBookShare returns midOK=false)
+        return "no farmers", 0.0
 
-    # size-cutoff-adjusted midpoint (fall back to raw touch mid if one side
-    # has no qualifying level — scoring may still be nonzero via the c-penalty)
-    qb = [p for p, s in bids if s >= min_size]
-    qa = [p for p, s in asks if s >= min_size]
-    if qb and qa:
-        mid = (max(qb) + min(qa)) / 2
-    else:
-        mid = (max(p for p, _ in bids) + min(p for p, _ in asks)) / 2
+    # midpoint = RAW touch of orders of ANY size. The official docs say
+    # "size-cutoff-adjusted midpoint", but the engine's parity-tested port
+    # (internal/reward/score.go) verified live against CLOB GET /midpoint —
+    # and reconciled against actual on-chain payouts — that min_size gates
+    # only earning, never the midpoint.
+    mid = (max(p for p, _ in bids) + min(p for p, _ in asks)) / 2
 
     v = max_spread_cents
 
-    def side(levels: list[tuple[float, float]], is_bid: bool) -> tuple[float, float]:
-        q, best_sc = 0.0, None  # best_sc: tightest in-band qualifying spread (cents)
+    def side(levels: list[tuple[float, float]], is_bid: bool) -> tuple[float, float, float]:
+        q, best_sc, cap = 0.0, None, 0.0  # best_sc: tightest in-band qualifying spread (cents)
         for p, s in levels:
             if s < min_size:
                 continue
@@ -179,19 +201,21 @@ def competitiveness(book: dict | None, min_size: float, max_spread_cents: float)
             if sc < 0 or sc > v:
                 continue
             q += ((v - sc) / v) ** 2 * s
+            cap += (p if is_bid else 1 - p) * s
             best_sc = sc if best_sc is None else min(best_sc, sc)
-        return q, best_sc
+        return q, best_sc, cap
 
     def combine(qb: float, qa: float) -> float:
         if 0.10 <= mid <= 0.90:
             return max(min(qb, qa), max(qb, qa) / 3.0)
         return min(qb, qa)
 
-    q_bid, best_bid_sc = side(bids, True)
-    q_ask, best_ask_sc = side(asks, False)
+    q_bid, best_bid_sc, cap_bid = side(bids, True)
+    q_ask, best_ask_sc, cap_ask = side(asks, False)
+    capital = cap_bid + cap_ask
     q_exist = combine(q_bid, q_ask)
     if q_exist <= 1e-9:
-        return "no farmers"
+        return "no farmers", capital
 
     # hypothetical newcomer: min_size per side, joining the best in-band
     # qualifying price (or posting mid-band where a side has none)
@@ -201,12 +225,12 @@ def competitiveness(book: dict | None, min_size: float, max_spread_cents: float)
 
     q_new = combine(new_q(best_bid_sc), new_q(best_ask_sc))
     share = q_new / (q_new + q_exist)
-    return "thin" if share >= 0.25 else "contested"
+    return ("thin" if share >= 0.25 else "contested"), capital
 
 
 # --- history (long-term time series of tiny aggregates) -----------------------
 
-DIM_KEYS = ["c", "sb", "mpb", "vb", "rwb", "msb", "ab", "rb", "cb"]
+DIM_KEYS = ["c", "sb", "mpb", "vb", "rwb", "msb", "ab", "rb", "cb", "yb"]
 
 
 def write_history(hist_dir: Path, meta: dict, markets: list[dict]) -> None:
@@ -226,7 +250,14 @@ def write_history(hist_dir: Path, meta: dict, markets: list[dict]) -> None:
             e[0] += m["rw"]
             e[1] += 1
         dims[key] = {b: [round(v[0]), v[1]] for b, v in agg.items()}
-    line = {"ts": meta["ts"], "total": meta["total"], "count": meta["count"], "dims": dims}
+    # capital per yield bucket + universe total (the yb dim's natural unit)
+    liq_by_yb: dict = {}
+    for m in markets:
+        liq_by_yb[m["yb"]] = liq_by_yb.get(m["yb"], 0) + m["lq"]
+    line = {"ts": meta["ts"], "total": meta["total"], "count": meta["count"],
+            "liq_total": round(sum(m["lq"] for m in markets)),
+            "liq_by_yb": {b: round(v) for b, v in liq_by_yb.items()},
+            "dims": dims}
     with open(day_file, "a") as f:
         f.write(json.dumps(line, ensure_ascii=False) + "\n")
     print(f"history: appended {meta['ts']} -> {day_file}")
@@ -265,9 +296,15 @@ def main() -> int:
         return ""
 
     markets = []
+    skipped_not_live = 0
     for r in sampling:
         cid = r.get("condition_id")
         if not cid:
+            continue
+        # engine-parity liveness gate: only markets accepting orders right now
+        # belong in the "currently being distributed" universe
+        if not (r.get("active") and r.get("accepting_orders") and not r.get("closed")):
+            skipped_not_live += 1
             continue
         g = gamma.get(cid, {})
         rw = sum(float(x.get("rewards_daily_rate") or 0)
@@ -285,6 +322,9 @@ def main() -> int:
 
         vol = g.get("volume24hr")
         vol = float(vol) if vol is not None else 0.0
+
+        cb, lq = book_stats(book, min_size, max_spread)
+        y = rw / lq * 100 if cb != "no farmers" and lq > 0 else None
 
         start = parse_iso(g.get("startDate"))
         end = parse_iso(g.get("endDate")) or parse_iso(r.get("end_date_iso"))
@@ -308,7 +348,10 @@ def main() -> int:
             "vn": round(vol),
             "ab": days_bucket(age_d, "unknown"),
             "rb": days_bucket(end_d, "no end"),
-            "cb": competitiveness(book, min_size, max_spread),
+            "cb": cb,
+            "lq": round(lq),
+            "y": None if y is None else round(y, 3),
+            "yb": yield_bucket(y),
             "rw": round(rw, 2),
         })
 
@@ -328,14 +371,15 @@ def main() -> int:
     out = {
         "meta": {"ts": manifest["ts_utc"], "label": label,
                  "total": total, "count": len(markets),
-                 "period_min": int(os.environ.get("PERIOD_MIN", "30"))},
+                 "period_min": int(os.environ.get("PERIOD_MIN", "60"))},
         "markets": markets,
     }
     dest = ROOT / "page" / "data.js"
     dest.parent.mkdir(exist_ok=True)
     dest.write_text("window.SNAPSHOT = " + json.dumps(out, ensure_ascii=False) + ";\n")
     print(f"wrote {dest} ({dest.stat().st_size/1e6:.1f} MB): "
-          f"{len(markets)} markets, ${total:,}/day\n")
+          f"{len(markets)} markets, ${total:,}/day"
+          f" (skipped {skipped_not_live} non-live rows)\n")
 
     if args.history:
         hp = Path(args.history)
@@ -344,7 +388,8 @@ def main() -> int:
     # verification: $-weighted distribution per dimension
     for key, name in [("c", "category"), ("sb", "spread"), ("mpb", "mid price"),
                       ("vb", "volume24h"), ("rwb", "reward/day"), ("msb", "min shares"),
-                      ("ab", "age"), ("rb", "ends"), ("cb", "competitiveness")]:
+                      ("ab", "age"), ("rb", "ends"), ("cb", "competitiveness"),
+                      ("yb", "yield /$100/day")]:
         by = defaultdict(float)
         cnt = Counter()
         for m in markets:
