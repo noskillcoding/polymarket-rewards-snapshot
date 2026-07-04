@@ -23,10 +23,13 @@ body{margin:0;background:#f4f3f0;padding:34px 24px 60px;font-family:system-ui,-a
 .kpi .sfx{font:600 14px system-ui;color:#8a8a8e;margin-left:3px}
 .kpi2 .v{font:700 22px/1 system-ui}
 .cap{font-size:11px;color:#8a8a8e;margin-top:5px}
-.snap{margin-left:auto;text-align:right}
+.snap{text-align:right}
 .snap .ts{font:500 11px 'IBM Plex Mono',monospace;color:#8a8a8e}
 .snap .ts.stale{color:#b45309}
 .snap .period{color:#b8b8bc;margin-top:5px}
+.agentbtn{margin-left:auto;align-self:center;font:500 11px 'IBM Plex Mono',monospace;color:#3b5bdb;border:1px solid rgba(59,91,219,.30);background:rgba(59,91,219,.10);border-radius:4px;height:24px;padding:0 11px;cursor:pointer;transition:background .12s}
+.agentbtn:hover{background:rgba(59,91,219,.2)}
+.agentbtn.ok{color:#15803d;border-color:rgba(21,128,61,.35);background:rgba(21,128,61,.08)}
 
 .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:15px 0 3px;min-height:24px}
 .chips .flt{font-size:11px;color:#8a8a8e}
@@ -121,6 +124,7 @@ td.q a:hover{text-decoration:underline}
         <div class="v" id="kpiCount">—</div>
         <div class="cap" id="kpiCountCap">Rewarded markets</div>
       </div>
+      <button class="agentbtn" id="agentBtn" title="Copies a plain-text guide any AI agent can follow to find and query this data">Give it to your AI agent</button>
       <div class="snap">
         <div class="ts" id="snapTs">updated · —</div>
         <div class="ts period" id="snapPeriod"></div>
@@ -142,6 +146,66 @@ td.q a:hover{text-decoration:underline}
   </div>
 </div>
 <div class="tip" id="tip" hidden></div>
+
+<!-- Inert markdown (type is not JS, browsers skip it): the text the
+     "Copy data guide for your agent" button puts on the clipboard. -->
+<script type="text/markdown" id="agentGuide">
+# Polymarket Liquidity Rewards Snapshot — data guide for AI agents
+
+This dashboard (https://noskillcoding.github.io/polymarket-rewards-snapshot/)
+captures every rewarded Polymarket market every hour and tracks where the total
+daily liquidity-reward pool goes. All data below is public, no auth needed.
+
+## 1. Latest snapshot — every market, one row each
+
+https://noskillcoding.github.io/polymarket-rewards-snapshot/data.js
+It's a JS file: strip the leading `window.SNAPSHOT =` and parse the rest as
+JSON. `meta` = {ts, total $/day, market count}. `markets` = array of rows:
+
+- `q` question, `slug` (market page = polymarket.com/market/<slug>), `c` category
+- `rw` — this market's daily reward pool, $
+- `lq` — $ of reward-eligible liquidity currently in its order book
+- `y` — yield: reward $/day per $100 of that liquidity; `cb` — "no farmers" / "thin" / "contested"
+- `mp` mid price, `sp` spread ¢, `ms` min order size (shares) to qualify, `vn` 24h volume $
+- the rest (`sb, mpb, msb, rwb, vb, ab, rb, yb`) are bucket labels for those
+  same values (age, time-to-resolution, etc.)
+
+## 2. Hourly history — aggregates, one JSON object per line
+
+https://raw.githubusercontent.com/noskillcoding/polymarket-rewards-snapshot/main/history/<YYYY-MM-DD>.ndjsonl
+(from 2026-07-02). Each line: `{ts, total, count, dims}` — `dims` maps each
+dimension (category, spread, mid-price, volume, reward size, min-size, age,
+resolution, competitiveness, yield) to buckets of [reward $/day, market count].
+
+## 3. Raw upstream, if you need live order books
+
+Polymarket public APIs: CLOB https://clob.polymarket.com/sampling-markets (the
+rewarded universe + reward configs, paginated via `next_cursor`), CLOB
+POST https://clob.polymarket.com/books (order books by token_id), Gamma
+https://gamma-api.polymarket.com/markets (volumes, dates).
+
+## Official Polymarket references
+
+- Reward rules + scoring formula: https://docs.polymarket.com/developers/market-makers/liquidity-rewards
+- Plain-English explainer: https://help.polymarket.com/en/articles/13364466-liquidity-rewards
+- Live rewards page (per-market pools, your earnings): https://polymarket.com/rewards
+- CLOB API reference: https://docs.polymarket.com/developers/CLOB/clients/methods-public
+
+## Rules to know before computing anything
+
+- All money values are plain USD. Everything is a point-in-time hourly sample;
+  rewards pay out daily at 00:00 UTC from each market's `rw`, split among
+  makers by Polymarket's scoring formula.
+- Only orders within the market's max spread from the midpoint AND >= `ms`
+  shares earn; closer to mid earns quadratically more.
+- Two-sided rule: with mid between 10¢ and 90¢, quoting only one side earns
+  1/3 score; outside that range one-sided quotes earn ZERO.
+- Order books aggregate by price level — individual makers and orders are not
+  visible. Nothing here identifies who earns what.
+- `cb` "no farmers" ("ghost" market) = no reward-eligible orders in the book
+  at sample time; the pool is on offer but nobody is earning it.
+</script>
+
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>

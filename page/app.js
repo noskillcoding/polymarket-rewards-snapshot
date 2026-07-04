@@ -420,6 +420,40 @@
     tsEl.textContent = txt;
   })();
   $('snapPeriod').textContent = 'auto-updates every ' + (S.meta.period_min || 30) + ' min';
+
+  // "Copy data guide for your agent" — puts the #agentGuide markdown on the
+  // clipboard so a visitor can paste it into any AI agent. The execCommand
+  // fallback covers non-secure contexts (e.g. opening the page via file://).
+  (function () {
+    var btn = $('agentBtn');
+    var guide = document.getElementById('agentGuide').textContent.trim() + '\n';
+    var idle = btn.textContent;
+    function done(ok) {
+      btn.textContent = ok ? '✓ copied — paste it into your agent' : 'copy failed';
+      btn.classList.toggle('ok', ok);
+      setTimeout(function () { btn.textContent = idle; btn.classList.remove('ok'); }, 2500);
+    }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = guide;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      return ok;
+    }
+    btn.addEventListener('click', function () {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(guide).then(function () { done(true); }, function () { done(fallback()); });
+      } else {
+        done(fallback());
+      }
+    });
+  })();
+
   buildCharts();
   buildTableHead();
   $('ybtbl').tBodies[0].addEventListener('click', function (e) {
