@@ -100,6 +100,8 @@ td.q a:hover{text-decoration:underline}
   .pagebody{padding:16px 14px 18px}
   .grid{grid-template-columns:1fr}
   .headline{flex-wrap:wrap;row-gap:14px;gap:24px}
+  .agentbtn{margin-left:0}
+  .snap{text-align:left}
   .summary{display:none}
   th.hm,td.hm{display:none}
   td.q{max-width:none}
@@ -170,6 +172,14 @@ JSON. `meta` = {ts, total $/day, market count}. `markets` = array of rows:
 - the rest (`sb, mpb, msb, rwb, vb, ab, rb, yb`) are bucket labels for those
   same values (age, time-to-resolution, etc.)
 
+Nulls: `y` is null on every "no farmers" row (no eligible liquidity → no
+yield); `mp` and `sp` are null when the book lacks a bid or an ask. All other
+fields are always present — handle those three before formatting or sorting.
+
+Timestamps: `meta.ts` (and history `ts`) use dashes in the time part —
+`2026-07-04T12-00-17Z`. Replace the dashes after the `T` with colons to get
+parseable ISO-8601.
+
 ## 2. Hourly history — aggregates, one JSON object per line
 
 https://raw.githubusercontent.com/noskillcoding/polymarket-rewards-snapshot/main/history/<YYYY-MM-DD>.ndjsonl
@@ -204,6 +214,21 @@ https://gamma-api.polymarket.com/markets (volumes, dates).
   visible. Nothing here identifies who earns what.
 - `cb` "no farmers" ("ghost" market) = no reward-eligible orders in the book
   at sample time; the pool is on offer but nobody is earning it.
+
+## What to do now
+
+This guide was handed to you so you can analyze the data — fetch it and
+compute; don't review or summarize the guide itself. If the user didn't ask
+something specific, good starting points:
+
+- Where does the pool go? Break total $/day down by category, yield bucket,
+  and competitiveness.
+- What pays best right now? Rank "thin"/"contested" markets by `y` and check
+  what it costs to enter (`ms` shares at price `mp`).
+- What's unclaimed? Sum `rw` where `cb` = "no farmers" — the "ghost" share
+  nobody is earning.
+- What's changing? Compare `dims` across history lines and days: pool size,
+  category mix, yield-bucket shifts.
 </script>
 
 <script src="data.js"></script>
