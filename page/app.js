@@ -399,10 +399,9 @@
 
   // --- boot ------------------------------------------------------------------
 
-  // "updated · 2 Jul 10:54 UTC (43 min ago)" + amber STALE badge when the
-  // pipeline has missed 2+ cycles. meta.ts is "YYYY-MM-DDTHH-MM-SSZ".
+  // "updated · 2 Jul 10:54 UTC (43 min ago)". meta.ts is "YYYY-MM-DDTHH-MM-SSZ";
+  // the relative age speaks for itself — no staleness badge or cadence label.
   (function () {
-    var tsEl = $('snapTs');
     var txt = 'updated · ' + S.meta.label;
     var iso = String(S.meta.ts || '').replace(/T(\d\d)-(\d\d)-(\d\d)Z$/, 'T$1:$2:$3Z');
     var ageMin = (Date.now() - Date.parse(iso)) / 60000;
@@ -412,14 +411,9 @@
         : ageMin < 2880 ? (ageMin / 60).toFixed(1) + ' h ago'
         : Math.round(ageMin / 1440) + ' d ago';
       txt += ' (' + rel + ')';
-      if (ageMin > 2 * (S.meta.period_min || 30)) {
-        txt += ' · STALE';
-        tsEl.classList.add('stale');
-      }
     }
-    tsEl.textContent = txt;
+    $('snapTs').textContent = txt;
   })();
-  $('snapPeriod').textContent = 'auto-updates every ' + (S.meta.period_min || 30) + ' min';
 
   // "Copy data guide for your agent" — puts the #agentGuide markdown on the
   // clipboard so a visitor can paste it into any AI agent. The execCommand

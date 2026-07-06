@@ -3,8 +3,8 @@
 #
 # Fail-safe by construction: any failing step (fetch errors, coverage < 99%,
 # compute sanity floors) aborts the run BEFORE deploy — Pages keeps serving
-# the last good snapshot and the page header shows a STALE badge. GitHub
-# emails the repo owner on workflow failure.
+# the last good snapshot (its header still shows the last-good update time).
+# GitHub emails the repo owner on workflow failure.
 #
 # The per-run history commit doubles as repo activity, which keeps GitHub
 # from auto-disabling this schedule after 60 idle days.
@@ -12,7 +12,7 @@ name: update
 
 on:
   schedule:
-    - cron: '37 * * * *'      # hourly, off-peak minute (:00/:30 slots get dropped under load); keep PERIOD_MIN in sync
+    - cron: '7,37 * * * *'    # twice hourly at off-peak minutes; GitHub silently drops some scheduled runs under load, so two attempts/hour keeps the site fresher
   workflow_dispatch:
   push:
     branches: [main]
