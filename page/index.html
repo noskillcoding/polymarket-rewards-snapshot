@@ -62,9 +62,10 @@ body{margin:0;background:var(--bg);padding:34px 24px 60px;font-family:system-ui,
 .kpi .sfx{font:600 14px system-ui;color:var(--muted);margin-left:3px}
 .kpi2 .v{font:700 22px/1 system-ui}
 .cap{font-size:11px;color:var(--muted);margin-top:5px}
+.headright{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
 .snap{text-align:right}
 .snap .ts{font:500 11px 'IBM Plex Mono',monospace;color:var(--muted)}
-.agentbtn{margin-left:auto;align-self:center;font:500 11px 'IBM Plex Mono',monospace;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:4px;height:24px;padding:0 11px;cursor:pointer;transition:background .12s}
+.agentbtn{font:500 11px 'IBM Plex Mono',monospace;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:4px;height:24px;padding:0 11px;cursor:pointer;transition:background .12s}
 .agentbtn:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
 .agentbtn.ok{color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent);background:color-mix(in srgb,var(--green) 8%,transparent)}
 
@@ -137,7 +138,7 @@ td.q a:hover{text-decoration:underline}
   .pagebody{padding:16px 14px 18px}
   .grid{grid-template-columns:1fr}
   .headline{flex-wrap:wrap;row-gap:14px;gap:24px}
-  .agentbtn{margin-left:0}
+  .headright{margin-left:0;align-items:flex-start}
   .snap{text-align:left}
   .summary{display:none}
   th.hm,td.hm{display:none}
@@ -164,9 +165,11 @@ td.q a:hover{text-decoration:underline}
         <div class="v" id="kpiCount">—</div>
         <div class="cap" id="kpiCountCap">Rewarded markets</div>
       </div>
-      <button class="agentbtn" id="agentBtn" title="Copies a plain-text guide any AI agent can follow to find and query this data">Give it to your AI agent</button>
-      <div class="snap">
-        <div class="ts" id="snapTs">updated · —</div>
+      <div class="headright">
+        <button class="agentbtn" id="agentBtn" title="Copies a plain-text guide any AI agent can follow to find and query this data">Give it to your AI agent</button>
+        <div class="snap">
+          <div class="ts" id="snapTs">updated · —</div>
+        </div>
       </div>
     </div>
     <div class="chips" id="chipsRow"></div>
