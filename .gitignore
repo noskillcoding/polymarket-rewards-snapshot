@@ -1,6 +1,10 @@
 # raw snapshots (~20 MB each) — ephemeral, never committed
 data/
 
+# reward ledger (~14 MB, rewrites daily) — kept in the Actions cache, regenerable
+# from chain; only page/farmers-data.js is committed. See .github/workflows/farmers.yml
+farmers/
+
 # python
 __pycache__/
 *.py[cod]

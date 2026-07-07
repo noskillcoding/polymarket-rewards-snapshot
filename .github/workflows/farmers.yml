@@ -1,0 +1,81 @@
+# Rebuild the farmer leaderboard once a day, after the UTC reward payouts settle.
+#
+# Reward payouts land ~00:00 UTC as one batch/day, so this runs daily (not hourly
+# like the market snapshot). It updates the on-chain farmed ledger incrementally
+# and regenerates page/farmers-data.js. The ~14 MB ledger (farmers/) is regenerable
+# from chain, so it lives in the Actions CACHE (not committed — avoids MB/day repo
+# churn); only the 896 KB page/farmers-data.js is COMMITTED. It does NOT deploy:
+# the hourly `update` workflow force-pushes all of page/ to gh-pages (regenerating
+# the market data.js fresh), and picks up the committed farmers-data.js there — so
+# a single deployer touches gh-pages and the stale committed market seed is never
+# shipped. The farmer refresh goes live at the next hourly `update` run (<= 1h).
+name: farmers
+
+on:
+  schedule:
+    - cron: '11 1 * * *'    # 01:11 UTC — a comfortable margin after 00:00 payouts
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: farmers
+  cancel-in-progress: false
+
+jobs:
+  farmers:
+    runs-on: ubuntu-latest
+    # compute_farmers.py pages the data-api per farmer for windowed volume (~45 min);
+    # fetch_farmers.py adds ~20 min on the first run (full ~2-year backfill), a few min
+    # incrementally after. 90 leaves headroom for slow-API days. Actions bills only
+    # the minutes actually used, so a high ceiling is free.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      # The reward ledger (farmers/) is regenerable from chain, so we keep it in the
+      # Actions cache instead of committing its ~14 MB daily churn. The rolling
+      # prefix key restores the most recent ledger; the unique per-run key means
+      # each run also SAVES a fresh entry (GitHub evicts stale ones). A cache miss
+      # (first run / after eviction) => fetch_farmers backfills the full ~2-year
+      # history (~20 min, within the 90-min timeout).
+      - name: Restore reward ledger (from cache)
+        uses: actions/cache/restore@v4
+        with:
+          path: farmers
+          key: farmers-ledger-${{ github.run_id }}
+          restore-keys: |
+            farmers-ledger-
+
+      - name: Scan on-chain reward payouts (incremental)
+        run: python fetch_farmers.py
+
+      # Persist the advanced ledger right after the scan (before the longer compute),
+      # so a compute failure still preserves the scan progress for the next run.
+      - name: Save reward ledger (to cache)
+        uses: actions/cache/save@v4
+        with:
+          path: farmers
+          key: farmers-ledger-${{ github.run_id }}
+
+      - name: Rank windows + fetch volumes -> farmers-data.js
+        run: python compute_farmers.py
+
+      - name: Commit page data
+        run: |
+          git config user.name  'rewards-bot'
+          git config user.email 'rewards-bot@users.noreply.github.com'
+          git add page/farmers-data.js
+          if ! git diff --cached --quiet; then
+            git commit -m "farmers: $(date -u +'%Y-%m-%dT%H:%MZ')"
+            git pull --rebase --autostash origin main
+            git push
+          fi

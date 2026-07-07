@@ -26,6 +26,25 @@ Fail-safe: fetch errors, <99% coverage, or an implausibly small universe
 previous page keeps serving, its header turns amber (**STALE**) after two
 missed cycles, and GitHub emails the repo owner about the failed workflow.
 
+## Farmer leaderboard (second page)
+
+`page/farmers.html` — the top liquidity **farmers** by rewards received vs volume
+traded (Farmed / Volume = how often they get filled), in 1d / 7d / 30d / all-time
+windows. Built daily by a separate pipeline; see `docs/farmer-leaderboard.md`.
+
+```
+fetch_farmers.py    incremental on-chain reward scan (keyless Tenderly getLogs)
+                    -> farmers/ ledger (kept in the Actions cache, not committed)
+compute_farmers.py  rank each window + lb-api/data-api volumes -> page/farmers-data.js
+.github/workflows/farmers.yml   daily cron (01:11 UTC); caches the ledger, commits
+                    only page/farmers-data.js. The hourly `update` deploy carries it
+                    to gh-pages (<= 1h).
+```
+
+Local dev: `.venv/bin/python fetch_farmers.py` (first run backfills the full ~2-year
+program history, ~20 min; later runs are incremental) then
+`.venv/bin/python compute_farmers.py` (MAX_ROWS/FLOOR_USD/VOL_WORKERS env).
+
 ## Setup (one-time)
 
 1. Create the repo on GitHub (**public**, for free Pages) — don't push yet.
