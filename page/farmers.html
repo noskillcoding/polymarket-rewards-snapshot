@@ -47,7 +47,8 @@ body{margin:0;background:var(--bg);padding:34px 24px 60px;font-family:system-ui,
 .dot{width:9px;height:9px;border-radius:50%;background:var(--dot)}
 .dot+.dot{margin-left:6px}
 .chrome .ttl{font:600 11px system-ui;color:var(--muted);margin-left:9px}
-.themebtn{margin-left:auto;width:27px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--surface);border-radius:5px;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;transition:color .12s,border-color .12s}
+.chromenav{margin-left:auto;display:flex;align-items:center;gap:14px}
+.themebtn{width:27px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--surface);border-radius:5px;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;transition:color .12s,border-color .12s}
 .themebtn:hover{color:var(--text);border-color:var(--muted)}
 .pagebody{padding:22px 24px 24px}
 
@@ -118,6 +119,8 @@ td.na{color:var(--faint)}
 @media(max-width:680px){
   body{padding:12px 8px 40px}
   .pagebody{padding:16px 14px 18px}
+  .chrome{flex-wrap:wrap;row-gap:8px}
+  .chromenav{flex-wrap:wrap;justify-content:flex-end}
   .headline{flex-wrap:wrap;row-gap:14px;gap:24px}
   .headright{margin-left:0;align-items:flex-start}
   .snap .ts{text-align:left}
@@ -131,7 +134,11 @@ td.na{color:var(--faint)}
   <div class="chrome">
     <span class="dot"></span><span class="dot"></span><span class="dot"></span>
     <span class="ttl">Liquidity Rewards — Farmer Leaderboard</span>
-    <button class="themebtn" id="themeBtn" type="button" aria-label="Toggle theme">☾</button>
+    <div class="chromenav">
+      <a class="navlink" href="index.html">← Market snapshot</a>
+      <a class="navlink" href="https://x.com/sybil_pm/status/2074142097436016984" target="_blank" rel="noopener">@sybil_pm on X ↗</a>
+      <button class="themebtn" id="themeBtn" type="button" aria-label="Toggle theme">☾</button>
+    </div>
   </div>
   <div class="pagebody">
     <div class="headline">
@@ -144,7 +151,6 @@ td.na{color:var(--faint)}
         <div class="cap">Lifetime farmers</div>
       </div>
       <div class="headright">
-        <a class="navlink" href="index.html">← Market snapshot</a>
         <button class="agentbtn" id="agentBtn" title="Copies a plain-text guide any AI agent can follow to reproduce this leaderboard">Give it to your AI agent</button>
         <div class="snap"><div class="ts" id="snapTs">updated · —</div></div>
       </div>
