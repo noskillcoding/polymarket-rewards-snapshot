@@ -21,7 +21,7 @@ page/               zero-dependency static dashboard (vanilla JS, no build)
                     -> deploy page/ to GitHub Pages
 ```
 
-Fail-safe: fetch errors, <99% coverage, or an implausibly small universe
+Fail-safe: <99% coverage or an implausibly small universe
 (`SANITY_MIN_MARKETS`/`SANITY_MIN_TOTAL`) abort the run before deploy — the
 previous page keeps serving, its header turns amber (**STALE**) after two
 missed cycles, and GitHub emails the repo owner about the failed workflow.

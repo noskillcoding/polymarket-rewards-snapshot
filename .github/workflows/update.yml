@@ -1,8 +1,8 @@
 # Snapshot the Polymarket rewards universe every hour and deploy the
 # dashboard to GitHub Pages.
 #
-# Fail-safe by construction: any failing step (fetch errors, coverage < 99%,
-# compute sanity floors) aborts the run BEFORE deploy — Pages keeps serving
+# Fail-safe by construction: any failing step (coverage < 99%, compute sanity
+# floors) aborts the run BEFORE deploy — Pages keeps serving
 # the last good snapshot (its header still shows the last-good update time).
 # GitHub emails the repo owner on workflow failure.
 #

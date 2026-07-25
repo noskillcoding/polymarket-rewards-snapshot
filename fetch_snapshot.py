@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -42,7 +43,30 @@ RETRIES = 3
 TIMEOUT = 30          # seconds per request
 END_CURSORS = {"", "LTE="}  # CLOB end-of-pages sentinels
 
+# Cloudflare edge-block recovery (see fetch_gamma_chunk). Depth 3 takes a 50-id
+# chunk down to ~7 ids; the budget caps the extra requests a BROAD block could
+# provoke, so a venue-wide 403 degrades into a normal failed run instead of a
+# request storm (50 ids fully split = 99 requests, x185 chunks = ~18k).
+GAMMA_SPLIT_MAX_DEPTH = 3
+GAMMA_SPLIT_BUDGET = 40
+
 DATA_DIR = Path(__file__).parent / "data"
+
+_split_lock = threading.Lock()
+_splits_used = 0
+
+
+class EdgeBlocked(Exception):
+    """Cloudflare returned 403 for this exact request — retrying it never helps."""
+
+
+def _take_split_budget() -> bool:
+    global _splits_used
+    with _split_lock:
+        if _splits_used >= GAMMA_SPLIT_BUDGET:
+            return False
+        _splits_used += 1
+        return True
 
 
 def _request(method: str, url: str, **kw) -> requests.Response:
@@ -56,6 +80,10 @@ def _request(method: str, url: str, **kw) -> requests.Response:
                 time.sleep(wait)
                 last = RuntimeError(f"HTTP {r.status_code} from {url}")
                 continue
+            if r.status_code == 403:
+                # Deterministic for a given URL — the caller decides (splitting is
+                # the only thing that clears it); re-sending would just burn retries.
+                raise EdgeBlocked(f"HTTP 403 (edge-blocked) from {url}")
             r.raise_for_status()
             return r
         except (requests.ConnectionError, requests.Timeout) as e:
@@ -84,9 +112,31 @@ def fetch_sampling_markets() -> list[dict]:
 
 # --- Phase 2: gamma metadata (parallel chunks) -------------------------------
 
-def fetch_gamma_chunk(ids: list[str]) -> list[dict]:
+def fetch_gamma_chunk(ids: list[str], depth: int = 0) -> list[dict]:
+    """Gamma metadata for one chunk of condition_ids, halving on an edge block.
+
+    Cloudflare's managed WAF blocks (403) certain multi-id query strings outright:
+    a content-triggered false positive, not rate limiting. Measured 2026-07-25,
+    when one chunk of 185 froze the site for ~9h: the block is served at the edge
+    (~0.06s, no origin hit), is deterministic for that exact SET of ids, and is
+    independent of URL length (same-length request with padding passes), of
+    ordering (reversed/sorted/rotated all blocked), and of any single id (each
+    passes alone). Splitting the same ids across two requests clears it every
+    time, so halve and recurse rather than lose the chunk — a lost chunk costs
+    0.54% coverage and used to fail the whole run.
+    """
     params = [("limit", str(len(ids)))] + [("condition_ids", i) for i in ids]
-    return _request("GET", f"{GAMMA}/markets", params=params).json()
+    try:
+        return _request("GET", f"{GAMMA}/markets", params=params).json()
+    except EdgeBlocked:
+        # Unsplittable, too deep, or the run has spent its split budget: report the
+        # hole and let the coverage check decide whether the snapshot still stands.
+        if len(ids) < 2 or depth >= GAMMA_SPLIT_MAX_DEPTH or not _take_split_budget():
+            raise
+        mid = len(ids) // 2
+        print(f"  gamma: edge-blocked on {len(ids)} ids — splitting (depth {depth + 1})")
+        return (fetch_gamma_chunk(ids[:mid], depth + 1)
+                + fetch_gamma_chunk(ids[mid:], depth + 1))
 
 
 # --- Phase 3: books (parallel batches) ---------------------------------------
@@ -169,9 +219,15 @@ def main() -> int:
 
     # Exit criteria (CI-friendly): a handful of venue-side gaps is NORMAL
     # (brand-new in-game markets missing from Gamma / without a book — verified
-    # live 2026-07-02: 2-4 gaps, ~0.03% of the pool). Fail only on request-level
-    # errors after retries, or coverage below 99% (a silently truncated
-    # universe must NOT deploy).
+    # live 2026-07-02: 2-4 gaps, ~0.03% of the pool). Fail on coverage below 99%
+    # — a silently truncated universe must NOT deploy.
+    #
+    # COVERAGE, not the error list, is the gate. Surviving request errors are
+    # already priced in: whatever a failed request cost us shows up as missing
+    # rows. Failing on `errors` too meant one unrecoverable chunk (0.54% of the
+    # universe) froze the whole site — it did exactly that for ~9h on 2026-07-25
+    # while coverage sat at 0.9945, comfortably inside tolerance. Errors are
+    # still recorded in the manifest and shouted below.
     frac_gamma = len(gamma_rows) / max(1, len(cids))
     frac_books = len(book_rows) / max(1, len(tokens))
 
@@ -190,12 +246,17 @@ def main() -> int:
                   "missing": len(books_missing), "missing_cids": books_missing[:20],
                   "markets_without_token": len(no_token)},
         "errors": errors,
+        "gamma_splits": _splits_used,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
     print(json.dumps(manifest, indent=2))
-    ok = not errors and frac_gamma >= 0.99 and frac_books >= 0.99
-    print(f"\nsnapshot {'OK' if ok else 'FAILED (fetch errors or coverage < 99%) — see manifest'} -> {out}")
+    ok = frac_gamma >= 0.99 and frac_books >= 0.99
+    if errors:
+        # Deploying past errors is deliberate (coverage is the gate) — never silent.
+        print(f"\nWARNING: {len(errors)} request(s) failed after retries; "
+              f"coverage gamma={frac_gamma:.4f} books={frac_books:.4f}")
+    print(f"\nsnapshot {'OK' if ok else 'FAILED (coverage < 99%) — see manifest'} -> {out}")
     return 0 if ok else 1
 
 
