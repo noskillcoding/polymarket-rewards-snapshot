@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquidity Rewards — Farmer Leaderboard</title>
+<script>
+/* Apply a saved theme before first paint so there's no flash (shared with the
+   market-snapshot page — same localStorage key). */
+(function(){try{var t=localStorage.getItem('rw-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%233b5bdb'/%3E%3Crect x='3' y='8' width='2.4' height='5' fill='white'/%3E%3Crect x='6.8' y='5' width='2.4' height='8' fill='white'/%3E%3Crect x='10.6' y='3' width='2.4' height='10' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f3f0; --surface:#fff; --surface-2:#fbfbfa;
+  --text:#1c1c1e; --muted:#8a8a8e; --faint:#b8b8bc;
+  --line:rgba(0,0,0,.10); --hair:rgba(0,0,0,.055); --dot:rgba(0,0,0,.11);
+  --shadow:0 8px 30px rgba(0,0,0,.07);
+  --accent:#3b5bdb; --accent-ink:#fff; --amber:#b45309; --green:#15803d;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme]){
+    --bg:#101216; --surface:#181a20; --surface-2:#1e212a;
+    --text:#e8e8ec; --muted:#9498a3; --faint:#63666f;
+    --line:rgba(255,255,255,.11); --hair:rgba(255,255,255,.06); --dot:rgba(255,255,255,.16);
+    --shadow:0 8px 30px rgba(0,0,0,.5);
+    --accent:#7b93ff; --accent-ink:#0f1013; --amber:#f0a952; --green:#54c98a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101216; --surface:#181a20; --surface-2:#1e212a;
+  --text:#e8e8ec; --muted:#9498a3; --faint:#63666f;
+  --line:rgba(255,255,255,.11); --hair:rgba(255,255,255,.06); --dot:rgba(255,255,255,.16);
+  --shadow:0 8px 30px rgba(0,0,0,.5);
+  --accent:#7b93ff; --accent-ink:#0f1013; --amber:#f0a952; --green:#54c98a;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);padding:34px 24px 60px;font-family:system-ui,-apple-system,sans-serif;color:var(--text)}
+.frame{width:1180px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.chrome{display:flex;align-items:center;padding:10px 15px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dot)}
+.dot+.dot{margin-left:6px}
+.chrome .ttl{font:600 11px system-ui;color:var(--muted);margin-left:9px}
+.chromenav{margin-left:auto;display:flex;align-items:center;gap:14px}
+.themebtn{width:27px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--surface);border-radius:5px;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;transition:color .12s,border-color .12s}
+.themebtn:hover{color:var(--text);border-color:var(--muted)}
+.pagebody{padding:22px 24px 24px}
+
+.headline{display:flex;align-items:flex-end;gap:34px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.kpi .v{font:700 30px/1 system-ui;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.kpi .sfx{font:600 14px system-ui;color:var(--muted);margin-left:3px}
+.kpi2 .v{font:700 22px/1 system-ui}
+.cap{font-size:11px;color:var(--muted);margin-top:5px}
+.headright{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.navlink{font:500 11px 'IBM Plex Mono',monospace;color:var(--muted);text-decoration:none}
+.navlink:hover{color:var(--accent);text-decoration:underline}
+.snap .ts{font:500 11px 'IBM Plex Mono',monospace;color:var(--muted);text-align:right}
+.agentbtn{font:500 11px 'IBM Plex Mono',monospace;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:4px;height:24px;padding:0 11px;cursor:pointer;transition:background .12s}
+.agentbtn:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
+.agentbtn.ok{color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent);background:color-mix(in srgb,var(--green) 8%,transparent)}
+
+.intro{font-size:11.5px;color:var(--muted);line-height:1.5;margin:14px 0 4px;max-width:720px}
+.intro b{color:var(--text);font-weight:600}
+
+.wintabs{display:flex;gap:6px;margin:16px 0 4px;flex-wrap:wrap}
+.wintab{font:600 11px system-ui;height:30px;padding:0 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--muted);cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;transition:background .12s,border-color .12s,color .12s}
+.wintab small{font:400 9px 'IBM Plex Mono',monospace;color:var(--faint)}
+.wintab:hover{border-color:var(--muted);color:var(--text)}
+.wintab.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.wintab.on small{color:color-mix(in srgb,var(--accent-ink) 75%,transparent)}
+.summary{margin:10px 0 4px;font:400 11px 'IBM Plex Mono',monospace;color:var(--faint)}
+
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:14px 0 2px}
+.ctl{display:flex;flex-direction:column;gap:3px}
+.ctl label{font:600 8.5px system-ui;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.ctl input{font:500 11px 'IBM Plex Mono',monospace;height:28px;padding:0 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--text);width:92px}
+.ctl.search input{width:210px}
+.ctl input:focus{outline:none;border-color:var(--accent)}
+.ctl input::placeholder{color:var(--faint)}
+.ctl .pair{display:flex;gap:5px;align-items:center}
+.ctl .pair input{width:60px}
+.ctl .pair span{color:var(--faint);font-size:11px}
+.ctlreset{font:600 11px system-ui;height:28px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--muted);cursor:pointer}
+.ctlreset:hover{border-color:var(--muted);color:var(--text)}
+
+.tblwrap{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{text-align:left;font:600 9.5px system-ui;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--line);background:var(--surface-2);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--text)}
+th.on{color:var(--accent)}
+th.num{text-align:right}
+th .ar{opacity:.7;font-size:8px}
+td{padding:8px 12px;border-bottom:1px solid var(--hair);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:color-mix(in srgb,var(--accent) 4%,transparent)}
+td.rank{color:var(--faint);font:500 10.5px 'IBM Plex Mono',monospace;width:44px}
+td.trader a{color:var(--text);text-decoration:none;font-weight:500}
+td.trader a:hover{color:var(--accent);text-decoration:underline}
+td.trader .addr{color:var(--faint);font:400 10px 'IBM Plex Mono',monospace}
+td.num{text-align:right;font:500 10.5px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+td.ratio{color:var(--green);font-weight:600}
+td.na{color:var(--faint)}
+
+.pager{display:flex;gap:6px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.pginfo{margin-right:auto;font:400 11px 'IBM Plex Mono',monospace;color:var(--muted)}
+.pgbtn{font:600 11px system-ui;min-width:30px;height:28px;padding:0 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);cursor:pointer;transition:background .12s,border-color .12s}
+.pgbtn:hover{background:var(--surface-2);border-color:var(--muted)}
+.pgbtn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pgbtn.dis{opacity:.4;pointer-events:none}
+.pggap{color:var(--faint);font-size:11px;padding:0 2px}
+
+@media(max-width:1240px){.frame{width:auto;max-width:1180px}}
+@media(max-width:680px){
+  body{padding:12px 8px 40px}
+  .pagebody{padding:16px 14px 18px}
+  .chrome{flex-wrap:wrap;row-gap:8px}
+  .chromenav{flex-wrap:wrap;justify-content:flex-end}
+  .headline{flex-wrap:wrap;row-gap:14px;gap:24px}
+  .headright{margin-left:0;align-items:flex-start}
+  .snap .ts{text-align:left}
+  th.hm,td.hm{display:none}
+  th,td{padding:8px 8px}
+}
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="chrome">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="ttl">Liquidity Rewards — Farmer Leaderboard</span>
+    <div class="chromenav">
+      <a class="navlink" href="index.html">← Market snapshot</a>
+      <a class="navlink" href="https://x.com/sybil_pm/status/2074142097436016984" target="_blank" rel="noopener">@sybil_pm on X ↗</a>
+      <button class="themebtn" id="themeBtn" type="button" aria-label="Toggle theme">☾</button>
+    </div>
+  </div>
+  <div class="pagebody">
+    <div class="headline">
+      <div class="kpi">
+        <div class="v"><span id="kpiFarmed">$—</span></div>
+        <div class="cap" id="kpiFarmedCap">Rewards paid all-time</div>
+      </div>
+      <div class="kpi kpi2">
+        <div class="v" id="kpiFarmers">—</div>
+        <div class="cap">Lifetime farmers</div>
+      </div>
+      <div class="headright">
+        <button class="agentbtn" id="agentBtn" title="Copies a plain-text guide any AI agent can follow to reproduce this leaderboard">Give it to your AI agent</button>
+        <div class="snap"><div class="ts" id="snapTs">updated · —</div></div>
+      </div>
+    </div>
+
+    <div class="intro">
+      Top liquidity farmers by <b>rewards received</b> vs the <b>volume</b> they traded.
+      <b>Farmed / Volume</b> is reward yield on traded volume — a proxy for how often a
+      farmer gets <b>filled</b>.
+    </div>
+
+    <div class="wintabs" id="winTabs"></div>
+
+    <div class="controls" id="controls">
+      <div class="ctl search">
+        <label>Search</label>
+        <input id="fSearch" type="search" placeholder="name or address" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="ctl">
+        <label>Farmed ≥ $</label>
+        <input id="fFarmed" type="number" inputmode="decimal" min="0" placeholder="0">
+      </div>
+      <div class="ctl">
+        <label>Volume ≥ $</label>
+        <input id="fVol" type="number" inputmode="decimal" min="0" placeholder="0">
+      </div>
+      <div class="ctl">
+        <label>Ratio %</label>
+        <div class="pair">
+          <input id="fRatMin" type="number" inputmode="decimal" min="0" placeholder="min">
+          <span>–</span>
+          <input id="fRatMax" type="number" inputmode="decimal" min="0" placeholder="max">
+        </div>
+      </div>
+      <button class="ctlreset" id="fReset" type="button">Reset</button>
+    </div>
+
+    <div class="summary" id="summary"></div>
+    <div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+    <div class="pager" id="pager"></div>
+  </div>
+</div>
+
+<script type="text/markdown" id="agentGuide">
+# Polymarket Farmer Leaderboard — data guide for AI agents
+
+This page ranks the top Polymarket liquidity farmers by rewards received vs volume
+traded, in 1d / 7d / 30d / all-time windows. All sources are public, no auth.
+
+## 1. This page's data
+
+https://noskillcoding.github.io/polymarket-rewards-snapshot/farmers-data.js
+Strip the leading `window.FARMERS =` and parse as JSON. `meta` has ts, the $ floor,
+and lifetime totals. `windows` maps each window ("1d","7d","30d","all") to an array,
+already ranked by farmed desc, of `{a: address, n: name, f: farmed $, v: volume (shares)}`.
+Farmed/Volume = f / v (v is 0 when the farmer earned but never got filled that window →
+shown as ∞). "1d" = the last completed earned day (`meta.prev_day`); Farmed and Volume
+in a row cover the same period (see Rules).
+
+## 2. Reproduce it from source
+
+- **Farmed (rewards received):** on-chain. Rewards are pushed ~daily as batched ERC-20
+  transfers from rotating reward treasuries. To enumerate farmers, scan Transfers of USDC.e
+  (0x2791bca1f2de4661ed88a30c99a7a9449aa84174) and pUSD
+  (0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb) FROM those treasuries via a keyless archive
+  RPC (e.g. https://polygon.gateway.tenderly.co); both are 6-decimal ~$1 stablecoins so
+  amounts sum in USD. The treasuries rotate ~monthly — find the current one as the on-chain
+  `from` of any recent payout. Easier per-user source (no RPC):
+  https://data-api.polymarket.com/activity?user=<addr>&type=REWARD (normalized `usdcSize`).
+- **Volume (per farmer, windowed):** = sum of trade `size` (shares) — Polymarket's
+  own "Volume" metric. All-time: https://lb-api.polymarket.com/volume?window=all&address=<addr>
+  (browser User-Agent required; also returns the display name; no 90d window). For the
+  1d/7d/30d windows, sum `size` over TRADE entries from
+  https://data-api.polymarket.com/activity?user=<addr>&type=TRADE yourself, bucketed by UTC
+  calendar day — lb-api's *windowed* endpoint often returns an empty row for real traders
+  (undercounting them to $0), whereas per-day sums can't. (lb-api `amount` == data-api sum(size).)
+- **Profile link:** https://polymarket.com/profile/<address>
+
+## Rules to know
+
+- Rewards carry NO per-market breakdown — one lump per farmer per UTC day.
+- A payout on UTC day D rewards liquidity EARNED on day D-1, so each window's volume is
+  summed over the matching earned days (payout_date − 1) by calendar day — Farmed and
+  Volume in a row always cover the same period (no trailing-window phase offset).
+- 3000 is a cap, not a floor: after the $10 gate, short windows may have fewer rows.
+</script>
+
+<script>
+/* Theme toggle — shared behavior with index.html. */
+(function () {
+  var root = document.documentElement, btn = document.getElementById('themeBtn');
+  var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+  function effective() { return root.getAttribute('data-theme') || (mq && mq.matches ? 'dark' : 'light'); }
+  function paint() {
+    var dark = effective() === 'dark';
+    btn.textContent = dark ? '☀' : '☾';
+    btn.title = dark ? 'Switch to light theme' : 'Switch to dark theme';
+    btn.setAttribute('aria-label', btn.title);
+  }
+  btn.addEventListener('click', function () {
+    var next = effective() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('rw-theme', next); } catch (e) {}
+    paint();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (!root.getAttribute('data-theme')) paint(); });
+  paint();
+})();
+</script>
+<script src="farmers-data.js"></script>
+<script src="farmers.js"></script>
+</body>
+</html>
